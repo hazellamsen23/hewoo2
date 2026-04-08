@@ -4,37 +4,32 @@ import { useAppContext } from '../context/AppContext';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [location, navigate] = useLocation();
-  const { profilePic, setProfilePic } = useAppContext();
+  const { profilePic, setProfilePic, settings } = useAppContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handlePfpClick = () => {
-    fileInputRef.current?.click();
-  };
 
   const handlePfpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result as string;
-      setProfilePic(result);
-    };
+    reader.onload = (ev) => setProfilePic(ev.target?.result as string);
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
   const navLinks = [
-    { label: '🏠 Home', path: '/' },
-    { label: '👤 My Profile', path: '/profile' },
-    { label: '📸 Photo Gallery', path: '/gallery' },
-    { label: '📝 Blog', path: '/blog' },
+    { label: settings.navHomeLabel,    path: '/' },
+    { label: settings.navProfileLabel, path: '/profile' },
+    { label: settings.navGalleryLabel, path: '/gallery' },
+    { label: settings.navBlogLabel,    path: '/blog' },
   ];
 
   return (
     <div className="myspace-body">
       <div className="pink-header">
         <div className="header-content">
-          <span className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>hazelshey</span>
+          <span className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            {settings.siteTitle}
+          </span>
           <div className="header-nav">
             {navLinks.map(link => (
               <span
@@ -51,24 +46,22 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
       <div className="main-container">
         <div className="left-column">
-          <h2 className="name-title">Hazel</h2>
+          <h2 className="name-title">{settings.displayName}</h2>
+
           <div className="box">
-            <div className="pfp-wrapper" onClick={handlePfpClick} title="Click to change profile picture">
+            <div className="pfp-wrapper" onClick={() => fileInputRef.current?.click()} title="Click to change profile picture">
               <img src={profilePic} alt="Profile" className="profile-pic" />
               <div className="pfp-overlay">📷 Change Photo</div>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={handlePfpChange}
-            />
-            <p className="status-text">"Accounting by day, Photography by night" <br /> <span className="online">● ONLINE</span></p>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePfpChange} />
+            <p className="status-text">
+              "{settings.statusText}"<br />
+              <span className="online">● ONLINE</span>
+            </p>
           </div>
 
           <div className="box contact-box">
-            <div className="box-header">Control Panel</div>
+            <div className="box-header">{settings.controlPanelTitle}</div>
             <div className="contact-links">
               {navLinks.map(link => (
                 <div
@@ -83,13 +76,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
 
           <div className="box">
-            <div className="box-header">About Me</div>
+            <div className="box-header">{settings.aboutTitle}</div>
             <div className="about-content">
-              <p>📍 Philippines</p>
-              <p>🎓 BSA Student</p>
-              <p>🐱 Cat mom to Bobo</p>
-              <p>📷 Amateur photographer</p>
-              <p>☕ Coffee addict</p>
+              {settings.aboutItems.map((item, i) => (
+                <p key={i}>{item}</p>
+              ))}
             </div>
           </div>
         </div>
