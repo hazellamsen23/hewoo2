@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "hk_SddZnJiwR2qljNS6mU"
+uri = "file://hazel-archive-export.tar.gz"
+type = "unspecified"
+title = "hazel-archive — Full Project (tar.gz)"
