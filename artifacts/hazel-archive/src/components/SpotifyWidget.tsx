@@ -28,9 +28,13 @@ const SpotifyWidget: React.FC = () => {
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [track, setTrack] = useState<iTunesTrack | null>(null);
+
+  const [audioDuration, setAudioDuration] = useState(30);
   const [startTime, setStartTime] = useState(0);
+  const [clipDuration, setClipDuration] = useState(20);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savedProgress, setSavedProgress] = useState(0);
@@ -39,8 +43,16 @@ const SpotifyWidget: React.FC = () => {
   const previewAudioRef = useRef<HTMLAudioElement>(null);
   const savedAudioRef = useRef<HTMLAudioElement | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   const song = profile?.profileSong;
+  const endTime = Math.min(startTime + clipDuration, audioDuration);
+  const clipPct = audioDuration > 0 ? (startTime / audioDuration) * 100 : 0;
+  const clipWidthPct = audioDuration > 0 ? (clipDuration / audioDuration) * 100 : 0;
+  const playheadPct = audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0;
+  const clipProgress = clipDuration > 0
+    ? Math.min(100, Math.max(0, ((currentTime - startTime) / clipDuration) * 100))
+    : 0;
 
   const handleSearch = useCallback((q: string) => {
     setQuery(q);
@@ -67,8 +79,10 @@ const SpotifyWidget: React.FC = () => {
     setShowResults(false);
     setQuery("");
     setStartTime(0);
+    setClipDuration(20);
     setPlaying(false);
     setCurrentTime(0);
+    setAudioDuration(30);
     setSaved(false);
     const audio = previewAudioRef.current;
     if (!audio) return;
@@ -79,21 +93,29 @@ const SpotifyWidget: React.FC = () => {
   useEffect(() => {
     const audio = previewAudioRef.current;
     if (!audio || !track) return;
+    const onLoaded = () => {
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        setAudioDuration(audio.duration);
+        setClipDuration((d) => Math.min(d, Math.floor(audio.duration)));
+      }
+    };
     const onTime = () => {
       setCurrentTime(audio.currentTime);
-      if (audio.currentTime >= startTime + 20) {
+      if (audio.currentTime >= endTime) {
         audio.currentTime = startTime;
         audio.play();
       }
     };
     const onEnd = () => setPlaying(false);
+    audio.addEventListener("loadedmetadata", onLoaded);
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("ended", onEnd);
     return () => {
+      audio.removeEventListener("loadedmetadata", onLoaded);
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("ended", onEnd);
     };
-  }, [track, startTime]);
+  }, [track, startTime, endTime]);
 
   const togglePlay = useCallback(() => {
     const audio = previewAudioRef.current;
@@ -101,6 +123,25 @@ const SpotifyWidget: React.FC = () => {
     if (playing) { audio.pause(); setPlaying(false); }
     else { audio.currentTime = startTime; audio.play().then(() => setPlaying(true)).catch(() => {}); }
   }, [playing, track, startTime]);
+
+  const applyStart = useCallback((t: number) => {
+    const maxStart = Math.max(0, audioDuration - clipDuration);
+    const clamped = Math.min(maxStart, Math.max(0, t));
+    setStartTime(clamped);
+    if (previewAudioRef.current) {
+      previewAudioRef.current.currentTime = clamped;
+      if (playing) previewAudioRef.current.play();
+    }
+    setCurrentTime(clamped);
+  }, [audioDuration, clipDuration, playing]);
+
+  const handleTimelineClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = timelineRef.current?.getBoundingClientRect();
+    if (!rect || audioDuration <= 0) return;
+    const pct = (e.clientX - rect.left) / rect.width;
+    const t = pct * audioDuration;
+    applyStart(t);
+  }, [audioDuration, applyStart]);
 
   useEffect(() => {
     if (track || !song?.url) {
@@ -147,7 +188,7 @@ const SpotifyWidget: React.FC = () => {
           artist: track.artistName,
           artwork: largeArt,
           startTime,
-          endTime: startTime + 20,
+          endTime: endTime,
         },
       });
       await refreshProfile();
@@ -158,10 +199,6 @@ const SpotifyWidget: React.FC = () => {
     }
     setSaving(false);
   };
-
-  const clipProgress = track
-    ? Math.min(100, Math.max(0, ((currentTime - startTime) / 20) * 100))
-    : 0;
 
   const largeArt = track?.artworkUrl100
     ?.replace("100x100bb", "600x600bb")
@@ -217,6 +254,8 @@ const SpotifyWidget: React.FC = () => {
             </div>
             <div className="spotify-heart">♡</div>
           </div>
+
+          {/* Clip progress bar — shows progress within the selected clip */}
           <div className="spotify-progress-section">
             <div className="spotify-progress-bar">
               <div className="spotify-progress-fill" style={{ width: `${clipProgress}%` }} />
@@ -224,16 +263,17 @@ const SpotifyWidget: React.FC = () => {
             </div>
             <div className="spotify-time-row">
               <span>{fmt(Math.max(0, currentTime - startTime))}</span>
-              <span>0:20</span>
+              <span>{fmt(clipDuration)}</span>
             </div>
           </div>
+
           <div className="spotify-controls">
             <button className="spotify-ctrl-sec" title="Shuffle">
               <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                 <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm0.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
               </svg>
             </button>
-            <button className="spotify-ctrl-skip" onClick={() => { const t = Math.max(0, startTime - 1); setStartTime(t); if (previewAudioRef.current) previewAudioRef.current.currentTime = t; }}>
+            <button className="spotify-ctrl-skip" onClick={() => applyStart(startTime - 1)}>
               <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
                 <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
               </svg>
@@ -244,7 +284,7 @@ const SpotifyWidget: React.FC = () => {
                 : <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M8 5v14l11-7z"/></svg>
               }
             </button>
-            <button className="spotify-ctrl-skip" onClick={() => { const t = Math.min(10, startTime + 1); setStartTime(t); if (previewAudioRef.current) previewAudioRef.current.currentTime = t; }}>
+            <button className="spotify-ctrl-skip" onClick={() => applyStart(startTime + 1)}>
               <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
                 <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
               </svg>
@@ -255,21 +295,78 @@ const SpotifyWidget: React.FC = () => {
               </svg>
             </button>
           </div>
+
+          {/* ── Clip Selector ── */}
           <div className="spotify-clip-section">
-            <div className="spotify-clip-label">📌 Clip: {fmt(startTime)} – {fmt(startTime + 20)}</div>
-            <input
-              type="range"
-              min={0}
-              max={10}
-              step={0.5}
-              value={startTime}
-              onChange={(e) => {
-                const t = Number(e.target.value);
-                setStartTime(t);
-                if (previewAudioRef.current) previewAudioRef.current.currentTime = t;
-              }}
-              className="spotify-clip-slider"
-            />
+            <div className="spotify-clip-section-title">✂️ Choose Your Clip</div>
+
+            {/* Full-duration visual timeline — click to set start */}
+            <div className="spotify-tl-label-row">
+              <span>Full preview</span>
+              <span>{fmt(audioDuration)}</span>
+            </div>
+            <div
+              className="spotify-timeline"
+              ref={timelineRef}
+              onClick={handleTimelineClick}
+              title="Click to move clip start"
+            >
+              {/* grey track */}
+              <div className="spotify-tl-track">
+                {/* pink highlighted clip region */}
+                <div
+                  className="spotify-tl-clip"
+                  style={{ left: `${clipPct}%`, width: `${clipWidthPct}%` }}
+                />
+                {/* playhead */}
+                {playing && (
+                  <div className="spotify-tl-playhead" style={{ left: `${playheadPct}%` }} />
+                )}
+              </div>
+              <div className="spotify-tl-ends">
+                <span>0:00</span>
+                <span>{fmt(audioDuration)}</span>
+              </div>
+            </div>
+
+            {/* Start time slider */}
+            <div className="spotify-slider-row">
+              <span className="spotify-slider-label">▶ Start</span>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(0, audioDuration - clipDuration)}
+                step={0.5}
+                value={startTime}
+                onChange={(e) => applyStart(Number(e.target.value))}
+                className="spotify-clip-slider"
+              />
+              <span className="spotify-slider-val">{fmt(startTime)}</span>
+            </div>
+
+            {/* Clip duration slider */}
+            <div className="spotify-slider-row">
+              <span className="spotify-slider-label">⏱ Length</span>
+              <input
+                type="range"
+                min={1}
+                max={Math.min(20, Math.floor(audioDuration))}
+                step={1}
+                value={clipDuration}
+                onChange={(e) => {
+                  const d = Number(e.target.value);
+                  setClipDuration(d);
+                  setStartTime((s) => Math.min(s, Math.max(0, audioDuration - d)));
+                }}
+                className="spotify-clip-slider"
+              />
+              <span className="spotify-slider-val">{clipDuration}s</span>
+            </div>
+
+            <div className="spotify-clip-summary">
+              📌 {fmt(startTime)} – {fmt(endTime)} &nbsp;·&nbsp; {clipDuration}s clip
+            </div>
+
             <button className="spotify-save-btn" onClick={handleSave} disabled={saving}>
               {saving ? "Saving..." : saved ? "✅ Saved!" : "💾 Set as Profile Song"}
             </button>
@@ -299,7 +396,7 @@ const SpotifyWidget: React.FC = () => {
             </div>
             <div className="spotify-time-row">
               <span>0:00</span>
-              <span>0:20</span>
+              <span>{fmt((song.endTime || 0) - (song.startTime || 0))}s clip</span>
             </div>
           </div>
           <div className="spotify-controls">

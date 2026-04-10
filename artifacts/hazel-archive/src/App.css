@@ -2188,18 +2188,101 @@
 .spotify-clip-section {
   border-top: 1px solid #2a2a2a;
   padding-top: 10px;
+  margin-top: 4px;
 }
-.spotify-clip-label {
+.spotify-clip-section-title {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 10px;
+  letter-spacing: 0.3px;
+}
+/* Full-duration clickable timeline */
+.spotify-tl-label-row {
+  display: flex;
+  justify-content: space-between;
+  color: #888;
+  font-size: 9px;
+  margin-bottom: 4px;
+}
+.spotify-timeline {
+  cursor: pointer;
+  margin-bottom: 10px;
+  user-select: none;
+}
+.spotify-tl-track {
+  position: relative;
+  height: 6px;
+  background: #3a3a3a;
+  border-radius: 3px;
+  overflow: visible;
+  margin-bottom: 3px;
+}
+.spotify-tl-clip {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #ff66b2;
+  border-radius: 3px;
+  opacity: 0.9;
+  transition: left 0.15s, width 0.15s;
+}
+.spotify-tl-playhead {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  transition: left 0.3s linear;
+  z-index: 2;
+}
+.spotify-tl-ends {
+  display: flex;
+  justify-content: space-between;
+  color: #666;
+  font-size: 9px;
+}
+/* Slider rows */
+.spotify-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.spotify-slider-label {
   color: #b3b3b3;
   font-size: 10px;
-  margin-bottom: 6px;
-  text-align: center;
+  white-space: nowrap;
+  width: 44px;
+  flex-shrink: 0;
+}
+.spotify-slider-val {
+  color: #ff66b2;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
 }
 .spotify-clip-slider {
-  width: 100%;
+  flex: 1;
   accent-color: #ff66b2;
   cursor: pointer;
-  margin-bottom: 8px;
+  height: 4px;
+}
+.spotify-clip-summary {
+  color: #888;
+  font-size: 10px;
+  text-align: center;
+  margin: 6px 0 8px;
+  background: #1e1e1e;
+  border-radius: 6px;
+  padding: 4px 6px;
 }
 .spotify-save-btn {
   width: 100%;
