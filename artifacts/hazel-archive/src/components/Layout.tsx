@@ -2,12 +2,12 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAppContext } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
+import SpotifyWidget from "./SpotifyWidget";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [location, navigate] = useLocation();
   const { profile } = useAppContext();
   const { user, logout } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [muted, setMuted] = useState(false);
@@ -22,7 +22,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { label: p?.navProfileLabel || "👤 My Profile", path: "/profile" },
     { label: p?.navGalleryLabel || "📸 Gallery", path: "/gallery" },
     { label: p?.navBlogLabel || "📝 Blog", path: "/blog" },
-    { label: p?.navGuestbookLabel || "📖 Guestbook", path: "/guestbook" },
   ];
 
   useEffect(() => {
@@ -223,33 +222,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </p>
           </div>
 
-          {p?.profileSong?.url && (
-            <div className="box profile-song-box">
-              <div className="box-header">🎵 Now Playing</div>
-              <ProfileSongPlayer song={p.profileSong} />
-            </div>
-          )}
-
-          <div className="box contact-box">
-            <div className="box-header">{p?.controlPanelTitle || "Control Panel"}</div>
-            <div className="contact-links">
-              {navLinks.map((link) => (
-                <div
-                  key={link.path}
-                  className={`link ${location === link.path ? "link-active" : ""}`}
-                  onClick={() => navigate(link.path)}
-                >
-                  {link.label}
-                </div>
-              ))}
-              <div className="link share-link" onClick={() => {
-                const url = window.location.origin + `/?view=${user?.id}`;
-                navigator.clipboard.writeText(url);
-                alert("🔗 Profile link copied! Share it with anyone.");
-              }}>
-                🔗 Share My Page
-              </div>
-            </div>
+          <div className="box" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="box-header" style={{ padding: "8px 12px" }}>🎵 Now Playing</div>
+            <SpotifyWidget />
           </div>
 
           <div className="box">
@@ -259,12 +234,25 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               {p?.bloodType && <p>🩸 Blood Type: {p.bloodType}</p>}
               {p?.location && <p>📍 {p.location}</p>}
               {p?.course && <p>🎓 {p.course}</p>}
-              {(p?.aboutItems || []).map((item, i) => (
+              {(p?.aboutItems || []).map((item: string, i: number) => (
                 <p key={i}>{item}</p>
               ))}
-              {(p?.funFacts || []).map((fact, i) => (
+              {(p?.funFacts || []).map((fact: string, i: number) => (
                 <p key={`ff-${i}`}>✨ {fact}</p>
               ))}
+            </div>
+          </div>
+
+          <div className="box contact-box">
+            <div className="box-header">🔗 Links</div>
+            <div className="contact-links">
+              <div className="link share-link" onClick={() => {
+                const url = window.location.origin + `/?view=${user?.id}`;
+                navigator.clipboard.writeText(url);
+                alert("🔗 Profile link copied! Share it with anyone.");
+              }}>
+                🔗 Share My Page
+              </div>
             </div>
           </div>
 
@@ -302,53 +290,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
 
         <div className="right-column">{children}</div>
-      </div>
-    </div>
-  );
-};
-
-const ProfileSongPlayer: React.FC<{ song: { url: string; title: string; startTime: number; endTime: number } }> = ({ song }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const checkTime = () => {
-      if (audio.currentTime >= song.endTime) {
-        audio.currentTime = song.startTime;
-        audio.play();
-      }
-    };
-    audio.addEventListener("timeupdate", checkTime);
-    if (song.url) {
-      audio.src = song.url;
-      audio.currentTime = song.startTime;
-      audio.play().then(() => setPlaying(true)).catch(() => {});
-    }
-    return () => audio.removeEventListener("timeupdate", checkTime);
-  }, [song.url, song.startTime, song.endTime]);
-
-  const toggle = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) { audio.pause(); setPlaying(false); }
-    else { audio.currentTime = song.startTime; audio.play(); setPlaying(true); }
-  };
-
-  return (
-    <div className="profile-song-player">
-      <audio ref={audioRef} loop style={{ display: "none" }} />
-      <div className="profile-song-info">
-        <span className="profile-song-icon">{playing ? "🎵" : "🎶"}</span>
-        <span className="profile-song-title">{song.title || "Profile Song"}</span>
-      </div>
-      <div className="profile-song-controls">
-        <button onClick={toggle} className="profile-song-btn">{playing ? "⏸" : "▶"}</button>
-        <button onClick={() => { setMuted((m) => !m); if (audioRef.current) audioRef.current.muted = !muted; }} className="profile-song-btn">
-          {muted ? "🔇" : "🔊"}
-        </button>
       </div>
     </div>
   );

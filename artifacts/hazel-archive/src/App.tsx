@@ -8,7 +8,6 @@ import Home from "./pages/Home";
 import Gallery from "./pages/Gallery";
 import Blog from "./pages/Blog";
 import ProfilePage from "./pages/ProfilePage";
-import GuestbookPage from "./pages/GuestbookPage";
 import LoginPage from "./pages/LoginPage";
 import { api } from "./services/api";
 
@@ -61,7 +60,6 @@ function AppRoutes() {
             <Route path="/profile" component={ProfilePage} />
             <Route path="/gallery" component={Gallery} />
             <Route path="/blog" component={Blog} />
-            <Route path="/guestbook" component={GuestbookPage} />
             <Route>
               <div className="box empty-state">
                 <p>Page not found. 🌸</p>

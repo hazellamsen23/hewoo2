@@ -38,7 +38,7 @@ export interface UserProfile {
   top8Count: number;
   top8Friends: any[];
   playlist: any[];
-  profileSong: { url: string; title: string; startTime: number; endTime: number };
+  profileSong: { url: string; title: string; artist?: string; artwork?: string; startTime: number; endTime: number };
 }
 
 interface AppContextType {
