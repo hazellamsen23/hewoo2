@@ -1,74 +1,85 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { api } from "../services/api";
+import { useAuth } from "./AuthContext";
 
-export interface SiteSettings {
-  siteTitle: string;
+export interface UserProfile {
+  id: string;
+  username: string;
   displayName: string;
   statusText: string;
+  profilePic: string;
+  aboutItems: string[];
+  zodiac: string;
+  bloodType: string;
+  funFacts: string[];
+  location: string;
+  course: string;
+  bio: string;
+  customCSS: string;
+  bgColor: string;
+  textColor: string;
+  linkColor: string;
+  fontFamily: string;
+  bgMusicUrl: string;
+  bgMusicEnabled: boolean;
+  bgMusicVolume: number;
+  cursorEffect: string;
+  marqueeText: string;
+  glitterEnabled: boolean;
+  siteTitle: string;
   controlPanelTitle: string;
   aboutTitle: string;
   navHomeLabel: string;
   navProfileLabel: string;
   navGalleryLabel: string;
   navBlogLabel: string;
-  aboutItems: string[];
+  navGuestbookLabel: string;
+  top8Label: string;
+  top8Count: number;
+  top8Friends: any[];
+  playlist: any[];
+  profileSong: { url: string; title: string; startTime: number; endTime: number };
 }
 
-const DEFAULT_SETTINGS: SiteSettings = {
-  siteTitle: 'hazelshey',
-  displayName: 'Hazel',
-  statusText: 'Accounting by day, Photography by night',
-  controlPanelTitle: 'Control Panel',
-  aboutTitle: 'About Me',
-  navHomeLabel: '🏠 Home',
-  navProfileLabel: '👤 My Profile',
-  navGalleryLabel: '📸 Photo Gallery',
-  navBlogLabel: '📝 Blog',
-  aboutItems: [
-    '📍 Philippines',
-    '🎓 BSA Student',
-    '🐱 Cat mom to Bobo',
-    '📷 Amateur photographer',
-    '☕ Coffee addict',
-  ],
-};
-
 interface AppContextType {
-  profilePic: string;
-  setProfilePic: (url: string) => void;
-  settings: SiteSettings;
-  saveSettings: (s: SiteSettings) => void;
+  profile: UserProfile | null;
+  viewedProfile: UserProfile | null;
+  setViewedProfile: (p: UserProfile | null) => void;
+  saveProfile: (patch: Partial<UserProfile>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType>({
-  profilePic: '',
-  setProfilePic: () => {},
-  settings: DEFAULT_SETTINGS,
-  saveSettings: () => {},
+  profile: null,
+  viewedProfile: null,
+  setViewedProfile: () => {},
+  saveProfile: async () => {},
+  refreshProfile: async () => {},
 });
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [profilePic, setProfilePicState] = useState<string>(() => {
-    return localStorage.getItem('hazel_pfp_v1') ||
-      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=300&h=300&fit=crop';
-  });
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [viewedProfile, setViewedProfile] = useState<UserProfile | null>(null);
 
-  const [settings, setSettings] = useState<SiteSettings>(() => {
-    const saved = localStorage.getItem('hazel_settings_v1');
-    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
-  });
+  const refreshProfile = useCallback(async () => {
+    if (!user) { setProfile(null); return; }
+    try {
+      const p = await api.profile.get(user.id);
+      setProfile(p);
+    } catch {}
+  }, [user]);
 
-  const setProfilePic = (url: string) => {
-    setProfilePicState(url);
-    localStorage.setItem('hazel_pfp_v1', url);
-  };
+  useEffect(() => { refreshProfile(); }, [refreshProfile]);
 
-  const saveSettings = (s: SiteSettings) => {
-    setSettings(s);
-    localStorage.setItem('hazel_settings_v1', JSON.stringify(s));
+  const saveProfile = async (patch: Partial<UserProfile>) => {
+    if (!user) return;
+    const updated = await api.profile.update(user.id, patch);
+    setProfile(updated);
   };
 
   return (
-    <AppContext.Provider value={{ profilePic, setProfilePic, settings, saveSettings }}>
+    <AppContext.Provider value={{ profile, viewedProfile, setViewedProfile, saveProfile, refreshProfile }}>
       {children}
     </AppContext.Provider>
   );

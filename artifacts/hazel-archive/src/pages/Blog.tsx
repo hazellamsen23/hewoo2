@@ -1,331 +1,314 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useAppContext } from '../context/AppContext';
+import React, { useState, useEffect, useCallback } from "react";
+import { useAppContext } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
+import { api } from "../services/api";
 
 interface BlogPost {
-  id: number;
+  id: string;
+  userId: string;
   title: string;
-  subtitle: string;
   content: string;
-  date: string;
   mood: string;
   tags: string[];
-  coverImg: string;
-  claps: number;
+  visibility: "public" | "friends" | "private" | "specific";
+  specificUserId: string;
+  coverImage: string;
+  comments: any[];
+  createdAt: string;
+  updatedAt: string;
 }
 
-const MOODS = ['😊 Happy', '😢 Sad', '😤 Stressed', '😴 Tired', '🥰 Grateful', '🤔 Thoughtful', '🎉 Excited', '☕ Cozy'];
-
-const readingTime = (text: string) => Math.max(1, Math.round(text.split(/\s+/).length / 200));
-
-const fmtDate = (dateStr: string) => {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-};
-
-type View = 'list' | 'write' | 'read';
+const MOODS = ["😊 Happy","😔 Sad","😡 Angry","😭 Crying","😌 Peaceful","☕ Cozy","🥺 Emotional","💪 Motivated","🤩 Excited","😩 Exhausted","🌸 Soft","✨ Grateful"];
 
 const Blog: React.FC = () => {
-  const { profilePic, settings } = useAppContext();
+  const { profile } = useAppContext();
+  const { user } = useAuth();
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<"list" | "write" | "view">("list");
+  const [viewPost, setViewPost] = useState<BlogPost | null>(null);
+  const [commentText, setCommentText] = useState<Record<string, string>>({});
+  const [guestName, setGuestName] = useState("");
 
-  const [posts, setPosts] = useState<BlogPost[]>(() => {
-    const saved = localStorage.getItem('hazel_blog_v2');
-    if (saved) return JSON.parse(saved);
-    const legacy = localStorage.getItem('hazel_blog_v1');
-    if (legacy) {
-      return JSON.parse(legacy).map((p: any) => ({
-        id: p.id, title: p.title, subtitle: '',
-        content: p.content, date: p.date, mood: p.mood || MOODS[0],
-        tags: [], coverImg: '', claps: 0,
-      }));
-    }
-    return [{
-      id: 1,
-      title: "First Entry",
-      subtitle: "A little note to start things off.",
-      content: "Starting this blog to keep track of my thoughts. 🌸 Life as a BSA student is hectic but I love it.\n\nEvery day is a new story waiting to be written. I hope this little corner of the internet becomes a place where I can be honest, creative, and just… me.",
-      date: new Date().toISOString().split('T')[0],
-      mood: "🥰 Grateful",
-      tags: ["life", "bsa", "thoughts"],
-      coverImg: "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=600",
-      claps: 0,
-    }];
-  });
-
-  const [view, setView] = useState<View>('list');
-  const [readingPost, setReadingPost] = useState<BlogPost | null>(null);
-  const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
-
-  const [title, setTitle] = useState('');
-  const [subtitle, setSubtitle] = useState('');
-  const [content, setContent] = useState('');
-  const [mood, setMood] = useState(MOODS[0]);
-  const [tagInput, setTagInput] = useState('');
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [mood, setMood] = useState("");
+  const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [coverImg, setCoverImg] = useState('');
-  const [coverUpload, setCoverUpload] = useState('');
-  const coverRef = useRef<HTMLInputElement>(null);
+  const [visibility, setVisibility] = useState<"public"|"friends"|"private"|"specific">("public");
+  const [specificUserId, setSpecificUserId] = useState("");
+  const [coverImage, setCoverImage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem('hazel_blog_v2', JSON.stringify(posts));
-  }, [posts]);
+  const loadPosts = useCallback(async () => {
+    if (!profile?.id) return;
+    try {
+      const data = await api.blog.getPosts(profile.id);
+      setPosts(data);
+    } catch {} finally { setLoading(false); }
+  }, [profile?.id]);
 
-  const resetForm = () => {
-    setTitle(''); setSubtitle(''); setContent('');
-    setMood(MOODS[0]); setTagInput(''); setTags([]);
-    setCoverImg(''); setCoverUpload('');
-    setEditingPost(null);
+  useEffect(() => { loadPosts(); }, [loadPosts]);
+
+  const handlePublish = async () => {
+    if (!title.trim() || !content.trim() || !profile?.id) return;
+    setSubmitting(true);
+    try {
+      const post = await api.blog.createPost(profile.id, { title, content, mood, tags, visibility, specificUserId, coverImage });
+      setPosts((prev) => [post, ...prev]);
+      setMode("list");
+      setTitle(""); setContent(""); setMood(""); setTags([]); setTagInput("");
+      setVisibility("public"); setSpecificUserId(""); setCoverImage("");
+    } catch (e: any) { alert(e.message); } finally { setSubmitting(false); }
   };
 
-  const openWrite = () => { resetForm(); setView('write'); };
-
-  const openEdit = (post: BlogPost) => {
-    setEditingPost(post);
-    setTitle(post.title); setSubtitle(post.subtitle);
-    setContent(post.content); setMood(post.mood);
-    setTags(post.tags); setCoverImg(post.coverImg);
-    setCoverUpload('');
-    setView('write');
+  const handleDelete = async (postId: string) => {
+    if (!profile?.id || !confirm("Delete this post?")) return;
+    try {
+      await api.blog.deletePost(profile.id, postId);
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      if (viewPost?.id === postId) setMode("list");
+    } catch (e: any) { alert(e.message); }
   };
 
-  const openRead = (post: BlogPost) => { setReadingPost(post); setView('read'); };
+  const handleAddComment = async (post: BlogPost) => {
+    const txt = commentText[post.id]?.trim();
+    if (!txt || !profile?.id) return;
+    try {
+      const updated = await api.blog.addComment(profile.id, post.id, {
+        text: txt,
+        authorName: user?.displayName || guestName || "Anonymous",
+      });
+      setPosts((prev) => prev.map((p) => p.id === post.id ? updated : p));
+      if (viewPost?.id === post.id) setViewPost(updated);
+      setCommentText((prev) => ({ ...prev, [post.id]: "" }));
+    } catch (e: any) { alert(e.message); }
+  };
 
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => { setCoverUpload(ev.target?.result as string); setCoverImg(''); };
-    reader.readAsDataURL(file); e.target.value = '';
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    if (!profile?.id) return;
+    try {
+      await api.blog.deleteComment(profile.id, postId, commentId);
+      const updated = await api.blog.getPost(profile.id, postId);
+      setPosts((prev) => prev.map((p) => p.id === postId ? updated : p));
+      if (viewPost?.id === postId) setViewPost(updated);
+    } catch (e: any) { alert(e.message); }
   };
 
   const addTag = () => {
-    const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-');
-    if (t && !tags.includes(t)) setTags([...tags, t]);
-    setTagInput('');
+    const t = tagInput.trim();
+    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
+    setTagInput("");
   };
 
-  const handlePublish = () => {
-    if (!title.trim() || !content.trim()) { alert('Title and content are required.'); return; }
-    const finalCover = coverUpload || coverImg;
-    if (editingPost) {
-      setPosts(prev => prev.map(p => p.id === editingPost.id
-        ? { ...p, title, subtitle, content, mood, tags, coverImg: finalCover }
-        : p));
-    } else {
-      const newPost: BlogPost = {
-        id: Date.now(), title, subtitle, content,
-        date: new Date().toISOString().split('T')[0],
-        mood, tags, coverImg: finalCover, claps: 0,
-      };
-      setPosts([newPost, ...posts]);
-    }
-    resetForm(); setView('list');
-  };
+  const formatDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const readingTime = (text: string) => Math.max(1, Math.ceil(text.split(" ").length / 200));
+  const visibilityIcon = (v: string) => v === "public" ? "🌐" : v === "friends" ? "👥" : v === "specific" ? "👤" : "🔒";
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('Delete this post?')) {
-      setPosts(prev => prev.filter(p => p.id !== id));
-      setView('list'); setReadingPost(null);
-    }
-  };
-
-  const handleClap = (id: number) => {
-    setPosts(prev => prev.map(p => p.id === id ? { ...p, claps: p.claps + 1 } : p));
-    if (readingPost?.id === id) setReadingPost(prev => prev ? { ...prev, claps: prev.claps + 1 } : prev);
-  };
-
-  /* ─── EDITOR VIEW ─── */
-  if (view === 'write') return (
-    <div className="medium-editor">
-      <div className="medium-editor-topbar">
-        <span className="medium-editor-logo">hazelshey · stories</span>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <select value={mood} onChange={e => setMood(e.target.value)} className="medium-mood-select">
-            {MOODS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <button className="medium-publish-btn" onClick={handlePublish}>
-            {editingPost ? 'Update' : 'Publish'}
-          </button>
-          <button className="medium-cancel-btn" onClick={() => { resetForm(); setView('list'); }}>✕</button>
-        </div>
-      </div>
-
-      <div className="medium-editor-body">
-        <div className="medium-cover-area">
-          {(coverUpload || coverImg) ? (
-            <div className="medium-cover-preview-wrap">
-              <img src={coverUpload || coverImg} alt="Cover" className="medium-cover-preview" />
-              <button className="medium-remove-cover" onClick={() => { setCoverImg(''); setCoverUpload(''); }}>✕ Remove</button>
-            </div>
-          ) : (
-            <div className="medium-cover-placeholder" onClick={() => coverRef.current?.click()}>
-              📷 Add a cover image
-            </div>
-          )}
-          <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCoverUpload} />
-          {!coverUpload && (
-            <input
-              className="medium-cover-url"
-              placeholder="or paste image URL here..."
-              value={coverImg}
-              onChange={e => setCoverImg(e.target.value)}
-            />
-          )}
-        </div>
-
-        <input
-          className="medium-title-input"
-          placeholder="Title"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-        />
-        <input
-          className="medium-subtitle-input"
-          placeholder="Add a subtitle..."
-          value={subtitle}
-          onChange={e => setSubtitle(e.target.value)}
-        />
-        <textarea
-          className="medium-content-input"
-          placeholder="Tell your story..."
-          value={content}
-          onChange={e => setContent(e.target.value)}
-        />
-
-        <div className="medium-tags-area">
-          <div className="medium-tags-list">
-            {tags.map(t => (
-              <span key={t} className="medium-tag">
-                {t}
-                <span className="medium-tag-remove" onClick={() => setTags(tags.filter(x => x !== t))}>✕</span>
-              </span>
-            ))}
-          </div>
-          <div className="medium-tag-input-row">
-            <input
-              className="medium-tag-input"
-              placeholder="Add a tag..."
-              value={tagInput}
-              onChange={e => setTagInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
-            />
-            <button className="medium-add-tag-btn" onClick={addTag}>Add</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  /* ─── READ VIEW ─── */
-  if (view === 'read' && readingPost) {
-    const post = posts.find(p => p.id === readingPost.id) || readingPost;
+  if (mode === "write") {
     return (
-      <div className="medium-read-view">
-        <button className="medium-back-btn" onClick={() => setView('list')}>← Back to Stories</button>
+      <div className="box blog-write-box">
+        <div className="box-header">✍️ Write a New Post</div>
+        <div style={{ padding: "16px" }}>
+          {coverImage && <img src={coverImage} alt="cover" style={{ width: "100%", maxHeight: "200px", objectFit: "cover", marginBottom: "12px", borderRadius: "3px" }} />}
+          <input
+            className="blog-title-input"
+            placeholder="Give your post a title..."
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <input
+            style={{ marginBottom: "10px", fontSize: "12px", width: "100%", padding: "6px", border: "1px solid #ffb3d9" }}
+            placeholder="Cover image URL (optional)"
+            value={coverImage}
+            onChange={(e) => setCoverImage(e.target.value)}
+          />
+          <textarea
+            className="blog-content-input"
+            placeholder="Pour your heart out here... 💕 This is your diary, your space."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={14}
+          />
 
-        {post.coverImg && <img src={post.coverImg} alt="Cover" className="medium-read-cover" />}
-
-        <div className="medium-read-body">
-          <div className="medium-read-mood">{post.mood}</div>
-          <h1 className="medium-read-title">{post.title}</h1>
-          {post.subtitle && <p className="medium-read-subtitle">{post.subtitle}</p>}
-
-          <div className="medium-read-meta">
-            <img src={profilePic} alt={settings.displayName} className="medium-read-avatar" />
+          <div className="blog-meta-row">
             <div>
-              <div className="medium-read-author">{settings.displayName}</div>
-              <div className="medium-read-info">
-                {fmtDate(post.date)} · {readingTime(post.content)} min read
-              </div>
+              <label style={{ fontSize: "11px", fontWeight: "bold", display: "block", marginBottom: "3px" }}>Mood</label>
+              <select value={mood} onChange={(e) => setMood(e.target.value)} style={{ fontSize: "12px" }}>
+                <option value="">— How are you feeling? —</option>
+                {MOODS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
             </div>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-              <button className="medium-edit-btn" onClick={() => openEdit(post)}>Edit</button>
-              <button className="medium-delete-btn" onClick={() => handleDelete(post.id)}>Delete</button>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: "bold", display: "block", marginBottom: "3px" }}>Who can see this?</label>
+              <select value={visibility} onChange={(e) => setVisibility(e.target.value as any)} style={{ fontSize: "12px" }}>
+                <option value="public">🌐 Public — anyone can see</option>
+                <option value="private">🔒 Private — only me</option>
+                <option value="specific">👤 Specific person only</option>
+              </select>
+              {visibility === "specific" && (
+                <input
+                  placeholder="User ID of the person"
+                  value={specificUserId}
+                  onChange={(e) => setSpecificUserId(e.target.value)}
+                  style={{ marginTop: "4px", width: "100%", fontSize: "11px", padding: "4px", border: "1px solid #ffb3d9" }}
+                />
+              )}
             </div>
           </div>
 
-          <hr className="medium-divider" />
-
-          <div className="medium-read-content">
-            {post.content.split('\n').map((para, i) =>
-              para.trim() ? <p key={i}>{para}</p> : <br key={i} />
-            )}
+          <div style={{ marginTop: "10px" }}>
+            <label style={{ fontSize: "11px", fontWeight: "bold", display: "block", marginBottom: "3px" }}>Tags</label>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+                placeholder="Add a tag, press Enter"
+                style={{ flex: 1, fontSize: "12px", padding: "5px", border: "1px solid #ffb3d9" }}
+              />
+              <button type="button" className="upload-btn" onClick={addTag}>Add</button>
+            </div>
+            <div className="tag-list" style={{ marginTop: "6px" }}>
+              {tags.map((t) => (
+                <span key={t} className="tag-chip">
+                  #{t} <span className="tag-remove" onClick={() => setTags((prev) => prev.filter((x) => x !== t))}>✕</span>
+                </span>
+              ))}
+            </div>
           </div>
 
-          {post.tags.length > 0 && (
-            <div className="medium-read-tags">
-              {post.tags.map(t => <span key={t} className="medium-tag-pill">{t}</span>)}
-            </div>
-          )}
+          {content && <p style={{ fontSize: "11px", color: "#999", margin: "8px 0 0" }}>~{readingTime(content)} min read</p>}
 
-          <div className="medium-clap-section">
-            <button className="medium-clap-btn" onClick={() => handleClap(post.id)}>
-              👏
+          <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
+            <button className="wall-post-btn" onClick={handlePublish} disabled={submitting} style={{ flex: 1 }}>
+              {submitting ? "Publishing..." : "📝 Publish Post"}
             </button>
-            <span className="medium-clap-count">{post.claps > 0 ? post.claps : ''}</span>
-            <span className="medium-clap-label">{post.claps === 1 ? 'clap' : 'claps'}</span>
+            <button className="cancel-btn" onClick={() => setMode("list")}>Cancel</button>
           </div>
         </div>
       </div>
     );
   }
 
-  /* ─── LIST VIEW ─── */
-  return (
-    <>
-      <div className="medium-list-header">
-        <div>
-          <div className="medium-list-title">Stories</div>
-          <div className="medium-list-sub">{posts.length} {posts.length === 1 ? 'story' : 'stories'}</div>
+  if (mode === "view" && viewPost) {
+    return (
+      <div className="box">
+        <div className="box-header" style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>📖 Reading</span>
+          <span className="delete-text" style={{ margin: "0 8px" }} onClick={() => setMode("list")}>← Back to Blog</span>
         </div>
-        <button className="medium-write-btn" onClick={openWrite}>✍️ Write a Story</button>
-      </div>
+        {viewPost.coverImage && (
+          <img src={viewPost.coverImage} alt="cover" style={{ width: "100%", maxHeight: "260px", objectFit: "cover" }} />
+        )}
+        <div style={{ padding: "16px" }}>
+          <h2 style={{ margin: "0 0 8px", color: "#cc0066", fontSize: "20px" }}>{viewPost.title}</h2>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "12px", flexWrap: "wrap" }}>
+            {viewPost.mood && <span className="blog-mood-chip">{viewPost.mood}</span>}
+            <span style={{ color: "#999", fontSize: "11px" }}>{formatDate(viewPost.createdAt)}</span>
+            <span style={{ color: "#999", fontSize: "11px" }}>~{readingTime(viewPost.content)} min read</span>
+            <span style={{ fontSize: "12px" }} title={viewPost.visibility}>{visibilityIcon(viewPost.visibility)}</span>
+            {user?.id === viewPost.userId && (
+              <span className="delete-text" onClick={() => handleDelete(viewPost.id)}>[Delete]</span>
+            )}
+          </div>
+          {viewPost.tags.length > 0 && (
+            <div className="tag-list" style={{ marginBottom: "12px" }}>
+              {viewPost.tags.map((t) => <span key={t} className="tag-chip">#{t}</span>)}
+            </div>
+          )}
+          <div className="blog-content-view">{viewPost.content}</div>
 
-      {posts.length === 0 && (
-        <div className="box empty-state"><p>No stories yet. Write your first one! ✍️</p></div>
-      )}
-
-      <div className="medium-cards">
-        {posts.map(post => (
-          <div key={post.id} className="medium-card" onClick={() => openRead(post)}>
-            <div className="medium-card-body">
-              <div className="medium-card-meta-top">
-                <img src={profilePic} alt={settings.displayName} className="medium-card-avatar" />
-                <span className="medium-card-author">{settings.displayName}</span>
-                <span className="medium-card-dot">·</span>
-                <span className="medium-card-date">{fmtDate(post.date)}</span>
+          <div style={{ marginTop: "24px", borderTop: "1px solid #ffb3d9", paddingTop: "16px" }}>
+            <div className="wall-feed-header">
+              <span className="wall-feed-title">💬 Comments ({viewPost.comments.length})</span>
+            </div>
+            {viewPost.comments.map((c: any) => (
+              <div key={c.id} className="comment-item" style={{ marginBottom: "10px" }}>
+                <div className="comment-bubble">
+                  <span className="comment-author">{c.authorName}</span>
+                  <span className="comment-text">{c.text}</span>
+                </div>
+                <div className="comment-meta-row">
+                  <span className="comment-time">{formatDate(c.createdAt)}</span>
+                  {(user?.id === c.authorId || user?.id === viewPost.userId) && (
+                    <span className="delete-text comment-delete" onClick={() => handleDeleteComment(viewPost.id, c.id)}>[Delete]</span>
+                  )}
+                </div>
               </div>
-              <div className="medium-card-main">
-                <div className="medium-card-text">
-                  <h2 className="medium-card-title">{post.title}</h2>
-                  {post.subtitle && <p className="medium-card-subtitle">{post.subtitle}</p>}
-                  <p className="medium-card-preview">
-                    {post.content.slice(0, 120)}{post.content.length > 120 ? '...' : ''}
-                  </p>
-                </div>
-                {post.coverImg && (
-                  <img src={post.coverImg} alt="Cover" className="medium-card-thumb" />
-                )}
-              </div>
-              <div className="medium-card-footer" onClick={e => e.stopPropagation()}>
-                <div className="medium-card-tags">
-                  <span className="medium-card-mood">{post.mood}</span>
-                  {post.tags.slice(0, 2).map(t => (
-                    <span key={t} className="medium-tag-pill">{t}</span>
-                  ))}
-                </div>
-                <div className="medium-card-actions">
-                  <span className="medium-card-read-time">{readingTime(post.content)} min read</span>
-                  <button className="medium-card-clap" onClick={() => handleClap(post.id)}>
-                    👏 {post.claps > 0 ? post.claps : ''}
-                  </button>
-                  <button className="medium-card-edit" onClick={() => openEdit(post)}>Edit</button>
-                  <button className="medium-card-del" onClick={() => handleDelete(post.id)}>Delete</button>
-                </div>
+            ))}
+            <div className="comment-inputs" style={{ marginTop: "12px" }}>
+              {!user && (
+                <input
+                  className="comment-author-input"
+                  placeholder="Your name (optional)"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                />
+              )}
+              <div className="comment-input-row">
+                <input
+                  className="comment-input"
+                  placeholder="Leave a comment..."
+                  value={commentText[viewPost.id] || ""}
+                  onChange={(e) => setCommentText((prev) => ({ ...prev, [viewPost.id]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddComment(viewPost); }}
+                />
+                <button className="comment-send-btn" onClick={() => handleAddComment(viewPost)}>Send</button>
               </div>
             </div>
           </div>
-        ))}
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="box">
+        <div className="box-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>📝 Blog Posts</span>
+          {user?.id === profile?.id && (
+            <button className="upload-btn" onClick={() => setMode("write")} style={{ margin: "0 6px 0 0" }}>
+              ✏️ Write Post
+            </button>
+          )}
+        </div>
+      </div>
+
+      {loading && <div className="box empty-state"><p>Loading... 🌸</p></div>}
+
+      {!loading && posts.length === 0 && (
+        <div className="box empty-state">
+          <p>No blog posts yet!{user?.id === profile?.id ? " Hit 'Write Post' to start your digital diary 🌸" : ""}</p>
+        </div>
+      )}
+
+      {posts.map((post) => (
+        <div key={post.id} className="box blog-card" onClick={() => { setViewPost(post); setMode("view"); }} style={{ cursor: "pointer" }}>
+          {post.coverImage && (
+            <img src={post.coverImage} alt="cover" style={{ width: "100%", height: "140px", objectFit: "cover" }} />
+          )}
+          <div style={{ padding: "12px" }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "6px" }}>
+              {post.mood && <span className="blog-mood-chip">{post.mood}</span>}
+              <span style={{ color: "#999", fontSize: "11px" }}>{formatDate(post.createdAt)}</span>
+              <span style={{ color: "#999", fontSize: "11px" }}>~{readingTime(post.content)} min read</span>
+              <span title={post.visibility}>{visibilityIcon(post.visibility)}</span>
+            </div>
+            <h3 className="blog-card-title">{post.title}</h3>
+            <p className="blog-card-preview">{post.content.slice(0, 140)}{post.content.length > 140 ? "..." : ""}</p>
+            {post.tags.length > 0 && (
+              <div className="tag-list" style={{ marginTop: "6px" }}>
+                {post.tags.map((t) => <span key={t} className="tag-chip">#{t}</span>)}
+              </div>
+            )}
+            <div style={{ marginTop: "8px", fontSize: "11px", color: "#cc0066" }}>
+              💬 {post.comments.length} comment{post.comments.length !== 1 ? "s" : ""} · Read more →
+            </div>
+          </div>
+        </div>
+      ))}
     </>
   );
 };

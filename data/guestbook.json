@@ -1,0 +1,35 @@
+[
+  {
+    "id": "93b4a741-5b06-49a7-8489-e326f78901de",
+    "profileUserId": "6bbbd382-3c28-4d5d-9cba-1585b7c03f4e",
+    "authorId": "6bbbd382-3c28-4d5d-9cba-1585b7c03f4e",
+    "authorName": "heizeruuu",
+    "message": "",
+    "sticker": "🦋",
+    "gifUrl": "",
+    "voiceData": "",
+    "createdAt": "2026-04-10T18:04:18.852Z"
+  },
+  {
+    "id": "cacca5db-1352-4476-8cb8-cd68e5db1f0e",
+    "profileUserId": "6bbbd382-3c28-4d5d-9cba-1585b7c03f4e",
+    "authorId": "6bbbd382-3c28-4d5d-9cba-1585b7c03f4e",
+    "authorName": "heizeruuu",
+    "message": "",
+    "sticker": "🌈",
+    "gifUrl": "",
+    "voiceData": "",
+    "createdAt": "2026-04-10T18:04:12.858Z"
+  },
+  {
+    "id": "f1d615d2-5a0c-4c10-b7d0-ec144c80ebb9",
+    "profileUserId": "8796c103-7f64-4c55-b9b9-eb9f7a19f197",
+    "authorId": null,
+    "authorName": "Visitor",
+    "message": "Love your page! 💕",
+    "sticker": "🌸",
+    "gifUrl": "",
+    "voiceData": "",
+    "createdAt": "2026-04-10T18:00:13.825Z"
+  }
+]
