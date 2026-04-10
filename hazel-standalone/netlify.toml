@@ -1,6 +1,10 @@
 [build]
-  command = "npm install && npm run build"
-  publish = "dist"
+  command = "pnpm install && pnpm run build"
+  publish = "dist/public"
+
+[build.environment]
+  NODE_VERSION = "18"
+  PNPM_VERSION = "8"
 
 [[redirects]]
   from   = "/*"
